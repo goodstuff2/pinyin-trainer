@@ -252,6 +252,20 @@ body{
 .ans-py{font-size:clamp(1.1rem,min(3vw,3.6vh),1.9rem);font-weight:900;color:var(--purple)}
 .ans-m{font-size:clamp(.85rem,min(2.2vw,2.6vh),1.3rem);font-weight:700;opacity:.9}
 
+
+/* virtual keyboard: touch devices (and narrow screens); hidden on desktop */
+.kb .key{min-width:0;max-width:52px;width:auto;display:flex;align-items:center;justify-content:center;height:clamp(34px,5.4vh,52px);font-size:clamp(.9rem,2.6vh,1.3rem);border-radius:10px}
+.kb{display:none;flex-direction:column;align-items:center;gap:clamp(4px,1vh,8px);padding:clamp(6px,1.2vh,12px) clamp(6px,1.5vw,14px);
+  background:#6c5a96;border:var(--bw) solid var(--ink);border-radius:18px;box-shadow:0 5px 0 var(--ink);max-width:100%;width:min(560px,98%)}
+.kbrow{display:flex;gap:clamp(3px,.9vw,7px);width:100%;justify-content:center}
+.key{flex:1 1 0;min-width:0;max-width:52px;font:inherit;font-weight:900;height:clamp(34px,5.4vh,52px);font-size:clamp(.9rem,2.6vh,1.3rem);
+  color:var(--ink);background:#fff;border:3px solid var(--ink);border-radius:10px;box-shadow:0 3px 0 var(--ink);
+  padding:0;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.key.down{transform:translateY(3px);box-shadow:0 0 0 var(--ink)}
+.nextpill{display:none;padding:6px 26px;font-size:1.2rem;border-radius:18px;box-shadow:0 4px 0 var(--ink);animation:pop .3s cubic-bezier(.3,1.7,.5,1)}
+@media (pointer:coarse),(max-width:820px){.kb{display:flex}}
+
+@media (max-width:600px){.wc-side{max-width:26vw;margin-left:6px}}
 </style>
 </head>
 <body>
@@ -320,6 +334,8 @@ body{
     <div class="timer"><i id="timer"></i></div>
    </div>
   </div>
+  <button class="btn big nextpill" id="nextBtn">NEXT ▶</button>
+  <div class="kb" id="kb"></div>
   <div class="hint" id="hint">spell the pinyin one letter at a time · tones ignored</div>
  </section>
 
@@ -717,9 +733,36 @@ addEventListener('keydown',e=>{
 });
 addEventListener('blur',()=>{if(G&&(G.state==='open'||G.state==='watch'))pause()});
 
+/* virtual keyboard (bottom): tap letters to spell */
+const KB_ROWS=['qwertyuiop','asdfghjkl','zxcvbnm'];
+function buildKb(){
+  const kb=$('kb');kb.innerHTML='';
+  KB_ROWS.forEach(r=>{
+    const row=document.createElement('div');row.className='kbrow';
+    [...r].forEach(ch=>{
+      const k=document.createElement('button');k.className='key';k.textContent=ch;k.tabIndex=-1;
+      k.addEventListener('pointerdown',e=>{e.preventDefault();k.classList.add('down');setTimeout(()=>k.classList.remove('down'),110);if(G&&!G.paused&&G.state==='open'&&!G.answered)typeLetter(ch)});
+      row.appendChild(k);
+    });
+    kb.appendChild(row);
+  });
+}
+/* NEXT pill: advance in no-timer mode without a physical Enter */
+$('nextBtn').addEventListener('pointerdown',e=>{e.preventDefault();if(G&&!G.paused&&(G.state==='review'||(G.state==='watch'&&G.noTimer)))advance()});
+function paintNext(){
+  const on=G&&(G.state==='review'||(G.state==='watch'&&G.noTimer))&&!G.paused&&$('game').classList.contains('on');
+  $('nextBtn').style.display=on?'inline-block':'none';
+}
+
 /* init */
 inlineMascots();mascotAnim('happy');
+buildKb();
 renderMenu();
+// keep the NEXT pill in sync with state changes
+const _setSay=setSay;setSay=function(t,cls){_setSay(t,cls);paintNext()};
+const _show=show;show=function(id){_show(id);paintNext()};
+const _advance=advance;advance=function(){_advance();paintNext()};
+
 
 </script>
 </body>
