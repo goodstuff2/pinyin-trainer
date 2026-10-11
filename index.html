@@ -139,6 +139,18 @@ kbd{font:inherit;font-size:.72rem;padding:1px 6px;border:1px solid currentColor;
 .wslot.hidden .wc-hz{color:var(--mute);opacity:.5}
 .wc-py{font-weight:650;text-align:center;line-height:1.15;min-height:1.4em;display:flex;align-items:flex-start;justify-content:center;max-width:100%;overflow-wrap:anywhere;
   font-size:clamp(.66rem,min(calc(100cqw / var(--cnt) * .2),2.6vh),1.6rem);padding:0 2px}
+.wc-df{color:var(--mute);text-align:center;line-height:1.2;padding:0 4px;min-height:2.4em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  font-size:clamp(.6rem,min(calc(100cqw / var(--cnt) * .15),2.1vh),.95rem);max-width:100%;overflow-wrap:anywhere}
+.tape.dense .wc-df{display:none}
+.wslot[data-w],.ibox[data-w],.mchip[data-w]{cursor:help}
+#tip{position:fixed;z-index:70;pointer-events:none;max-width:min(300px,calc(100vw - 20px));background:var(--ink);color:var(--bg);border-radius:14px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.35);
+  display:none;gap:4px;flex-direction:column;font-size:.9rem;line-height:1.35}
+#tip.on{display:flex}
+#tip .t-hz{font-family:var(--hz);font-size:2.2rem;line-height:1.1}
+#tip .t-py{font-weight:700;font-size:1.1rem;color:var(--accent-soft)}
+:root[data-theme=dark] #tip .t-py{color:var(--accent)}
+#tip .t-m{font-weight:500}
+#tip .t-meta{opacity:.65;font-size:.78rem;margin-top:2px}
 .wslot.hidden .wc-py{color:var(--mute);opacity:.5}
 
 .say{min-height:2.2em;display:flex;align-items:center;justify-content:center;text-align:center;font-size:clamp(.95rem,2.6vh,1.2rem);font-weight:650;
@@ -349,6 +361,7 @@ kbd{font:inherit;font-size:.72rem;padding:1px 6px;border:1px solid currentColor;
  </section>
 </div>
 
+<div id="tip" role="tooltip"></div>
 <div class="overlay" id="pauseOv"><div class="modal" role="dialog" aria-modal="true" aria-label="Paused"><h2>Paused</h2><p>Your round is on hold.</p><button class="btn primary" id="resumeBtn">Resume</button><button class="btn" id="quitBtn">Quit to menu</button></div></div>
 <div class="overlay" id="cdOv" style="background:rgba(10,9,20,.4)"><div class="countdown" id="cdNum">3</div></div>
 
@@ -577,6 +590,7 @@ function revealTarget(kind){
   s.classList.remove('tgt','hidden');s.classList.add(kind);
   s.querySelector('.wc-hz').textContent=G.target.h;s.querySelector('.wc-py').textContent=G.target.p;
   s.querySelector('.wc-tag').textContent=kind==='good'?'Correct':'Answer';
+  s.querySelector('.wc-df').textContent=shortDef(G.target);s._w=G.target;s.setAttribute('data-w','1');
 }
 
 /* bottom info row: newest word + the answered word */
@@ -585,7 +599,7 @@ function infoBox(cls,label,w){
   if(!w){d.innerHTML=`<div class="itx"><span class="ilab"></span></div>`;d.querySelector('.ilab').textContent=label;return d}
   d.innerHTML=`<div class="ihz"></div><div class="itx"><span class="ilab"></span><span class="ipy"></span><span class="imn"></span></div>`;
   d.querySelector('.ihz').textContent=w.h;d.querySelector('.ilab').textContent=label;
-  d.querySelector('.ipy').textContent=w.p;d.querySelector('.imn').textContent=w.m;
+  d.querySelector('.ipy').textContent=w.p;d.querySelector('.imn').textContent=w.m;d._w=w;d.setAttribute('data-w','1');
   return d;
 }
 function renderInfo(ans,ok){
@@ -606,31 +620,54 @@ function advance(){
   const now=performance.now();if(now-G.lastAdv<350)return;G.lastAdv=now;nextCard();paintNext();
 }
 
+/* short + detailed word info */
+function shortDef(w){let s=w.m.split(/[;(；]/)[0].split(/[,，] ?/)[0].trim();if(s.length>26)s=s.slice(0,25).replace(/\s+\S*$/,'')+'…';return s}
+const tip=$('tip');let tipEl=null;
+function showTip(el){
+  const w=el&&el._w;if(!w){hideTip();return}
+  tipEl=el;
+  const parts=w.m.split(/\s*;\s*/);
+  tip.innerHTML='<div class="t-hz"></div><div class="t-py"></div><div class="t-m"></div><div class="t-meta"></div>';
+  tip.querySelector('.t-hz').textContent=w.h;tip.querySelector('.t-py').textContent=w.p;
+  tip.querySelector('.t-m').textContent=parts.join(' · ');
+  tip.querySelector('.t-meta').textContent=`${w.h.length>1?w.h.length+' characters':'1 character'} · ${w.s.length} syllable${w.s.length>1?'s':''} · tones ignored in play`;
+  tip.classList.add('on');
+  const r=el.getBoundingClientRect(),tr=tip.getBoundingClientRect();
+  let x=Math.min(Math.max(8,r.left+r.width/2-tr.width/2),innerWidth-tr.width-8);
+  let y=r.top-tr.height-8;if(y<8)y=r.bottom+8;
+  tip.style.left=x+'px';tip.style.top=y+'px';
+}
+function hideTip(){tip.classList.remove('on');tipEl=null}
+document.addEventListener('mouseover',e=>{if(e.pointerType==='touch')return;const el=e.target.closest&&e.target.closest('.wslot,.ibox,.mchip');if(el&&el._w)showTip(el);else hideTip()});
+document.addEventListener('click',e=>{const el=e.target.closest&&e.target.closest('.wslot,.ibox,.mchip');if(el&&el._w&&el!==tipEl)showTip(el);else hideTip()});
+addEventListener('scroll',hideTip,true);
+
 /* tape: N+1 cards, oldest on the left. Characters hide as they age unless Peek is on. */
 function renderTape(blank){
   const tape=$('tape');tape.innerHTML='';
   const n=G.n,len=G.seq.length;
-  tape.style.setProperty('--cnt',n+1);
+  tape.style.setProperty('--cnt',n+1);tape.classList.toggle('dense',n+1>=6&&innerWidth<560);hideTip();
   for(let s=0;s<=n;s++){
     const age=n-s,idx=len-1-age;
     const slot=document.createElement('div');slot.className='wslot';
     const tag=document.createElement('div');tag.className='wc-tag';
     const hz=document.createElement('div');hz.className='wc-hz';
     const py=document.createElement('div');py.className='wc-py';
+    const df=document.createElement('div');df.className='wc-df';
     if(blank||idx<0){slot.classList.add('empty');tag.textContent=age===0?'Now':age+' back'}
     else{
       const w=G.seq[idx];slot.dataset.len=Math.min(3,w.h.length);
       if(age===0){
-        slot.classList.add('cur');hz.textContent=w.h;py.textContent=w.p;
+        slot.classList.add('cur');hz.textContent=w.h;py.textContent=w.p;df.textContent=shortDef(w);slot._w=w;slot.setAttribute('data-w','1');
         tag.textContent=G.cardRev?'Review':'Now';
       }else{
         tag.textContent=age+' back';
-        if(G.peek){hz.textContent=w.h;py.textContent=w.p}
+        if(G.peek){hz.textContent=w.h;py.textContent=w.p;df.textContent=shortDef(w);slot._w=w;slot.setAttribute('data-w','1')}
         else{slot.classList.add('hidden');hz.textContent='?'}
         if(age===n){slot.dataset.target='1';if(G.state==='open')slot.classList.add('tgt')}
       }
     }
-    slot.append(tag,hz,py);tape.appendChild(slot);
+    slot.append(tag,hz,py,df);tape.appendChild(slot);
   }
 }
 
@@ -702,7 +739,7 @@ function finish(){
     uniq.forEach(w=>{
       const d=document.createElement('div');d.className='mchip';
       d.innerHTML='<span class="hz"></span><div><b></b><span></span></div>';
-      d.querySelector('.hz').textContent=w.h;d.querySelector('b').textContent=w.p;d.querySelector('span:last-child').textContent=w.m;d.title=w.m;
+      d.querySelector('.hz').textContent=w.h;d.querySelector('b').textContent=w.p;d.querySelector('span:last-child').textContent=w.m;d._w=w;d.setAttribute('data-w','1');
       mc.appendChild(d);
     });
   }else{mc.innerHTML='<div class="mchip" style="grid-column:1/-1;justify-content:center;color:var(--good);font-weight:650">Clean round. No misses.</div>'}
